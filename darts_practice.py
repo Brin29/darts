@@ -12,5 +12,4 @@ serie_tr, serie_ts = serie.split_before(0.7)
 serie_tr.plot(label='Entrenamiento')
 serie_ts.plot(label='Prueba')
 
-serie.plot()
 plt.show()

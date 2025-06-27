@@ -22,5 +22,4 @@ naive_forecast.plot(label="Naive forecast (K=1)")
 # print(serie.freq)
 # print(serie.n_timesteps)
 
-
 plt.show()
