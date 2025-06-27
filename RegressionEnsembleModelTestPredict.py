@@ -3,57 +3,62 @@ import matplotlib.pyplot as plt
 from darts import TimeSeries
 from darts.models import NaiveDrift, NaiveSeasonal, LinearRegressionModel, RegressionEnsembleModel
 from darts.metrics import mape
+from datetime import datetime
 
 # Cargar datos
 df = pd.read_csv('./content/ventas.csv')
 serie = TimeSeries.from_dataframe(df, 'fecha', 'ventas')
 
-# Crear modelos base
+# Modelos base
 models = [
-    NaiveDrift(),               # Modelo de tendencia
-    NaiveSeasonal(K=12)         # Modelo de estacionalidad (mensual: 12 meses)
+    NaiveDrift(),
+    NaiveSeasonal(K=12)  # Usa 12 si es mensual
 ]
 
-# Definir modelo de regresión para combinar ambos
-quantiles = [0.25, 0.5, 0.75]
+# Modelo de regresión para el ensemble
 regression_model = LinearRegressionModel(
-    quantiles=quantiles,
+    quantiles=[0.25, 0.5, 0.75],
     lags_future_covariates=[0],
     likelihood='quantile',
     fit_intercept=False,
 )
 
-# Crear el modelo ensemble
+# Crear ensemble
 ensemble_model = RegressionEnsembleModel(
     forecasting_models=models,
     regression_train_n_points=12,
     regression_model=regression_model,
 )
 
-# Entrenar con toda la serie
-ensemble_model.fit(serie)
+# Inicializar
+serie_actual = serie
+forecast_total = None
+anios_a_predecir = 10
 
-# Calcular cuántos pasos faltan hasta 2025
-from datetime import datetime
+# Predecir año por año
+for i in range(anios_a_predecir):
+    print(f"📅 Prediciendo el año {serie_actual.end_time().year + 1}...")
 
-fecha_objetivo = pd.Timestamp("2025-12-01")
-if serie.freq == "M":
-    steps = (fecha_objetivo.year - serie.end_time().year) * 24 + (fecha_objetivo.month - serie.end_time().month)
-elif serie.freq == "W":
-    steps = ((fecha_objetivo - serie.end_time()).days) // 7
-elif serie.freq == "D":
-    steps = (fecha_objetivo - serie.end_time()).days
-else:
-    raise ValueError("Frecuencia no soportada")
+    # Entrenar con los datos actuales
+    ensemble_model.fit(serie_actual)
 
-print(f"Pasos hasta 2025: {steps}")
+    # Predecir el siguiente año (12 meses si es mensual)
+    forecast = ensemble_model.predict(n=12)
 
-# Realizar la predicción
-forecast = ensemble_model.predict(n=120)
+    # Guardar CSV con la predicción de ese año
+    year = serie_actual.end_time().year + 1
+    forecast.to_dataframe().to_csv(f'./forecast_ano_{year}.csv')
+
+    # Agregar el forecast a la serie actual
+    serie_actual = serie_actual.append(forecast)
+
+    # Acumular todas las predicciones
+    forecast_total = forecast if forecast_total is None else forecast_total.append(forecast)
 
 # Graficar resultados
-serie.plot(label='Datos históricos')
-forecast.plot(label='Predicción hasta 2025')
-plt.title("Predicción de ventas con tendencia + estacionalidad")
+serie.plot(label='Histórico')
+forecast_total.plot(label='Predicción 10 años')
+plt.title('Predicción año por año hasta 2035')
 plt.legend()
+plt.tight_layout()
 plt.show()
